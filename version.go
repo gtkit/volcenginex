@@ -1,4 +1,4 @@
-package govolcengine
+package volcenginex
 
 // Version 是本包的当前版本号，与 git 附注标签保持一致。
 //
