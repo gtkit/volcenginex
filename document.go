@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"github.com/gtkit/volcenginex/internal/trace"
-	"github.com/volcengine/volcengine-go-sdk/service/i18nopenapi"
 )
 
 // DocumentService wraps the asynchronous internationalization document APIs.
 type DocumentService struct {
 	client       *Client
-	api          i18nopenapi.I18NOPENAPIAPI
+	api          documentAPI
 	poll         PollPolicy
 	progressHook func(*TaskDetail)
 	sleep        func(context.Context, time.Duration) error
@@ -43,8 +42,8 @@ func (s *DocumentService) CreateProject(ctx context.Context, req CreateProjectRe
 	if out != nil {
 		project.RequestID = requestIDFromMetadata(out.Metadata)
 	}
-	if out != nil && out.ProjectId != nil {
-		project.ProjectID = *out.ProjectId
+	if out != nil && out.ProjectID != nil {
+		project.ProjectID = *out.ProjectID
 	}
 	return project, nil
 }
@@ -70,8 +69,8 @@ func (s *DocumentService) CreateTask(ctx context.Context, req CreateTaskRequest)
 		return task, nil
 	}
 	task.RequestID = requestIDFromMetadata(out.Metadata)
-	task.TaskID = valueOrZero(out.TaskId)
-	task.SubtaskIDs = int32Values(out.SubTaskIds)
+	task.TaskID = valueOrZero(out.TaskID)
+	task.SubtaskIDs = int32Values(out.SubtaskIDs)
 	return task, nil
 }
 
@@ -85,9 +84,9 @@ func (s *DocumentService) TaskDetail(ctx context.Context, projectID, taskID int3
 		rawValue = 1
 	}
 	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
-	out, err := s.api.DocumentTaskDetailWithContext(ctx, &i18nopenapi.DocumentTaskDetailInput{
-		ProjectId: new(projectID),
-		TaskId:    new(taskID),
+	out, err := s.api.DocumentTaskDetailWithContext(ctx, &documentTaskDetailInput{
+		ProjectID: new(projectID),
+		TaskID:    new(taskID),
 		Raw:       new(rawValue),
 	})
 	if err != nil {
@@ -102,10 +101,10 @@ func (s *DocumentService) StopTask(ctx context.Context, projectID, taskID int64,
 		return wrapSentinel("DocumentTaskStop", ErrInvalidArgument, "project ID and task ID must be positive")
 	}
 	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
-	_, err := s.api.DocumentTaskStopWithContext(ctx, &i18nopenapi.DocumentTaskStopInput{
-		ProjectId:  new(projectID),
-		TaskId:     new(taskID),
-		SubTaskIds: int64Pointers(subTaskIDs),
+	_, err := s.api.DocumentTaskStopWithContext(ctx, &documentTaskStopInput{
+		ProjectID:  new(projectID),
+		TaskID:     new(taskID),
+		SubtaskIDs: int64Pointers(subTaskIDs),
 	})
 	return providerError("DocumentTaskStop", err)
 }
@@ -120,9 +119,9 @@ func (s *DocumentService) DeleteTask(ctx context.Context, taskID int64, deleteDo
 		deleteValue = 1
 	}
 	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
-	_, err := s.api.DocumentTaskDeleteWithContext(ctx, &i18nopenapi.DocumentTaskDeleteInput{
-		TaskId:    new(taskID),
-		DeleteDoc: new(deleteValue),
+	_, err := s.api.DocumentTaskDeleteWithContext(ctx, &documentTaskDeleteInput{
+		TaskID:         new(taskID),
+		DeleteDocument: new(deleteValue),
 	})
 	return providerError("DocumentTaskDelete", err)
 }
@@ -183,7 +182,11 @@ func (s *DocumentService) TranslateFile(ctx context.Context, req FileTranslateRe
 	if err != nil {
 		return nil, err
 	}
-	return &Translation{Task: task, Detail: detail}, nil
+	return &Translation{
+		Task:                    task,
+		Detail:                  detail,
+		EstimatedCharacterCount: estimateDocumentCharacters(docs),
+	}, nil
 }
 
 func int64Pointers(values []int64) []*int64 {

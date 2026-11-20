@@ -91,6 +91,9 @@ func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (
 				return mapped
 			}
 			mu.Lock()
+			for _, text := range batchTexts {
+				result.CharacterCount += CountVolcMTChar(text)
+			}
 			if out == nil {
 				mu.Unlock()
 				return nil
@@ -154,12 +157,11 @@ func (s *TextService) Usage(ctx context.Context) (*Usage, error) {
 	now := time.Now().UTC()
 	from := int32(now.Add(-30 * 24 * time.Hour).Unix())
 	to := int32(now.Unix())
-	service := "translate"
 	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
 	out, err := s.api.GetUsageWithContext(ctx, &translate20250301.GetUsageInput{
 		From:    new(from),
 		To:      new(to),
-		Service: new(service),
+		Service: new(machineTranslationService),
 	})
 	if err != nil {
 		return nil, providerError("GetUsage", err)

@@ -21,6 +21,9 @@ result, err := client.Text().Translate(ctx, volcx.TextTranslateRequest{
     TargetLanguage: "en",
     TextList: []string{"你好，世界"},
 })
+
+// result.CharacterCount is a local rune-based estimate for display or
+// pre-deduction. Final billing comes from the Volcengine bill.
 ```
 
 凭据也可以从 `VOLCENGINE_ACCESS_KEY`、`VOLCENGINE_SECRET_KEY` 和 `VOLCENGINE_SESSION_TOKEN` 读取。完整客户端只创建一个官方 session，文本、图片和文档服务共享连接池。
@@ -62,3 +65,15 @@ func translateHandler(client *volcx.Client) http.Handler {
 ```
 
 计费与权限对照见 [`docs/billing.md`](docs/billing.md)，官方未生成接口的兜底说明见 [`docs/escape-hatch.md`](docs/escape-hatch.md)。
+
+## 用量统计
+
+`Text().Translate` 返回的 `CharacterCount` 只用于本地展示或预扣。图片结果的 `ImageCount` 统计图片张数，不统计 OCR 字符。文档全链路结果的 `EstimatedCharacterCount` 只统计调用方提供的内联文本，上传文件由火山内部抽取文本，实际账单可能存在偏差。
+
+后台定时任务可按 Unix 秒时间段调用独立的 `GetUsageCommon` 做对账，该方法不参与单次翻译实时展示。
+
+```go
+usage, err := client.Text().GetUsageCommon(ctx, fromUnix, toUnix)
+if err != nil { return err }
+fmt.Println(len(usage.Points))
+```

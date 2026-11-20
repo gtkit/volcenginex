@@ -3,7 +3,6 @@ package volcenginex
 import (
 	"time"
 
-	"github.com/volcengine/volcengine-go-sdk/service/i18nopenapi"
 	"github.com/volcengine/volcengine-go-sdk/service/translate20250301"
 )
 
@@ -41,8 +40,8 @@ func imageInput(req ImageTranslateRequest, image string) *translate20250301.Tran
 	return input
 }
 
-func createProjectInput(req CreateProjectRequest) *i18nopenapi.DocumentCreateInput {
-	return &i18nopenapi.DocumentCreateInput{
+func createProjectInput(req CreateProjectRequest) *documentCreateInput {
+	return &documentCreateInput{
 		ProjectName: new(req.ProjectName),
 		Members:     stringPointers(req.Members),
 		Role:        optionalString(req.Role),
@@ -50,7 +49,7 @@ func createProjectInput(req CreateProjectRequest) *i18nopenapi.DocumentCreateInp
 	}
 }
 
-func createTaskInput(req CreateTaskRequest) *i18nopenapi.DocumentTaskCreateInput {
+func createTaskInput(req CreateTaskRequest) *documentTaskCreateInput {
 	deadline := req.Deadline.UTC().Format("2006-01-02T15:04:05.000Z")
 	sourceLocale := req.SourceLocale
 	if sourceLocale == "" {
@@ -64,11 +63,11 @@ func createTaskInput(req CreateTaskRequest) *i18nopenapi.DocumentTaskCreateInput
 	if procedures == 0 {
 		procedures = ProceduresTranslate
 	}
-	input := &i18nopenapi.DocumentTaskCreateInput{
-		ProjectId:      new(req.ProjectID),
+	input := &documentTaskCreateInput{
+		ProjectID:      new(req.ProjectID),
 		TaskName:       new(req.TaskName),
 		Deadline:       new(deadline),
-		DocUrlList:     docPointers(req.Docs),
+		DocURLList:     docPointers(req.Docs),
 		TranslatorType: optionalInt32(req.TranslatorType),
 		Procedures:     new(int32(procedures)),
 		SourceLocale:   new(sourceLocale),
@@ -78,23 +77,23 @@ func createTaskInput(req CreateTaskRequest) *i18nopenapi.DocumentTaskCreateInput
 		ProofreadType:  optionalInt32(req.ProofreadType),
 	}
 	if req.Reference != nil {
-		input.ReferenceDocItem = &i18nopenapi.ReferenceDocItemForDocumentTaskCreateInput{
-			ReferenceDocName: optionalString(req.Reference.Name),
-			ReferenceDocType: new(int32(req.Reference.Type)),
-			ReferenceDocUrl:  optionalString(req.Reference.URL),
+		input.ReferenceDocItem = &documentTaskCreateReferenceInput{
+			Name: optionalString(req.Reference.Name),
+			Type: new(int32(req.Reference.Type)),
+			URL:  optionalString(req.Reference.URL),
 		}
 	}
 	return input
 }
 
-func docPointers(docs []DocInput) []*i18nopenapi.DocUrlListForDocumentTaskCreateInput {
-	values := make([]*i18nopenapi.DocUrlListForDocumentTaskCreateInput, len(docs))
+func docPointers(docs []DocInput) []*documentTaskCreateDocumentInput {
+	values := make([]*documentTaskCreateDocumentInput, len(docs))
 	for i := range docs {
 		doc := docs[i]
-		values[i] = &i18nopenapi.DocUrlListForDocumentTaskCreateInput{
+		values[i] = &documentTaskCreateDocumentInput{
 			Name:      optionalString(doc.Name),
 			DocType:   new(int32(doc.Type)),
-			Url:       optionalString(doc.URL),
+			URL:       optionalString(doc.URL),
 			Content:   optionalString(doc.Content),
 			WordCount: optionalString(doc.WordCount),
 		}
@@ -102,15 +101,15 @@ func docPointers(docs []DocInput) []*i18nopenapi.DocUrlListForDocumentTaskCreate
 	return values
 }
 
-func taskDetailOutput(out *i18nopenapi.DocumentTaskDetailOutput) *TaskDetail {
+func taskDetailOutput(out *documentTaskDetailOutput) *TaskDetail {
 	detail := &TaskDetail{}
 	if out == nil {
 		return detail
 	}
 	detail.RequestID = requestIDFromMetadata(out.Metadata)
 	if info := out.TaskInfo; info != nil {
-		detail.TaskID = valueOrZero(info.TaskId)
-		detail.TaskName = valueOrEmpty(info.TaskName)
+		detail.TaskID = valueOrZero(info.ID)
+		detail.TaskName = valueOrEmpty(info.Name)
 		detail.State = TaskState(valueOrZero(info.State))
 		detail.SourceLocale = valueOrEmpty(info.SourceLocale)
 		detail.TargetLocales = stringValues(info.TargetLocale)
@@ -124,12 +123,12 @@ func taskDetailOutput(out *i18nopenapi.DocumentTaskDetailOutput) *TaskDetail {
 		}
 		doc := DocResult{}
 		if item.Doc != nil {
-			doc.DocID = valueOrZero(item.Doc.DocId)
+			doc.DocID = valueOrZero(item.Doc.ID)
 			doc.WordCount = valueOrZero(item.Doc.WordCount)
-			doc.DocName = valueOrEmpty(item.Doc.DocName)
-			doc.URL = valueOrEmpty(item.Doc.Url)
+			doc.DocName = valueOrEmpty(item.Doc.Name)
+			doc.URL = valueOrEmpty(item.Doc.URL)
 			doc.Locale = valueOrEmpty(item.Doc.Locale)
-			doc.DocType = DocType(valueOrZero(item.Doc.DocType))
+			doc.DocType = DocType(valueOrZero(item.Doc.Type))
 		}
 		doc.Subtasks = make([]Subtask, 0, len(item.Subtasks))
 		for _, source := range item.Subtasks {
@@ -137,12 +136,12 @@ func taskDetailOutput(out *i18nopenapi.DocumentTaskDetailOutput) *TaskDetail {
 				continue
 			}
 			subtask := Subtask{
-				SubtaskID:          valueOrZero(source.SubTaskId),
-				TaskID:             valueOrZero(source.TaskId),
+				SubtaskID:          valueOrZero(source.ID),
+				TaskID:             valueOrZero(source.TaskID),
 				State:              valueOrZero(source.State),
 				TargetLocale:       valueOrEmpty(source.TargetLocale),
-				TargetDocID:        valueOrZero(source.TargetDocId),
-				TargetDocURL:       valueOrEmpty(source.TargetDocUrl),
+				TargetDocID:        valueOrZero(source.TargetDocumentID),
+				TargetDocURL:       valueOrEmpty(source.TargetDocumentURL),
 				TotalRuneCount:     valueOrEmpty(source.TotalRuneCount),
 				CompletedRuneCount: valueOrEmpty(source.CompletedRuneCount),
 				RawContent:         valueOrEmpty(source.RawContent),
@@ -157,7 +156,7 @@ func taskDetailOutput(out *i18nopenapi.DocumentTaskDetailOutput) *TaskDetail {
 					State:       valueOrZero(procedure.State),
 					Progress:    valueOrZero(procedure.Progress),
 					Deadline:    parseSDKTime(valueOrEmpty(procedure.Deadline)),
-					TargetDocID: valueOrZero(procedure.TargetDocId),
+					TargetDocID: valueOrZero(procedure.TargetDocument),
 					Comment:     valueOrEmpty(procedure.Comment),
 					CreatedAt:   parseSDKTime(valueOrEmpty(procedure.CreatedAt)),
 					UpdatedAt:   parseSDKTime(valueOrEmpty(procedure.UpdatedAt)),

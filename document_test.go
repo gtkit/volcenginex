@@ -6,29 +6,25 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
-
-	"github.com/volcengine/volcengine-go-sdk/service/i18nopenapi"
-	"github.com/volcengine/volcengine-go-sdk/volcengine/request"
 )
 
 type fakeDocumentAPI struct {
-	i18nopenapi.I18NOPENAPIAPI
-	createTaskInput *i18nopenapi.DocumentTaskCreateInput
-	details         []*i18nopenapi.DocumentTaskDetailOutput
+	createTaskInput *documentTaskCreateInput
+	details         []*documentTaskDetailOutput
 	detailCalls     int
 	detailErr       error
 }
 
-func (f *fakeDocumentAPI) DocumentCreateWithContext(_ context.Context, _ *i18nopenapi.DocumentCreateInput, _ ...request.Option) (*i18nopenapi.DocumentCreateOutput, error) {
-	return &i18nopenapi.DocumentCreateOutput{ProjectId: new(int32(4))}, nil
+func (f *fakeDocumentAPI) DocumentCreateWithContext(_ context.Context, _ *documentCreateInput) (*documentCreateOutput, error) {
+	return &documentCreateOutput{ProjectID: new(int32(4))}, nil
 }
 
-func (f *fakeDocumentAPI) DocumentTaskCreateWithContext(_ context.Context, input *i18nopenapi.DocumentTaskCreateInput, _ ...request.Option) (*i18nopenapi.DocumentTaskCreateOutput, error) {
+func (f *fakeDocumentAPI) DocumentTaskCreateWithContext(_ context.Context, input *documentTaskCreateInput) (*documentTaskCreateOutput, error) {
 	f.createTaskInput = input
-	return &i18nopenapi.DocumentTaskCreateOutput{TaskId: new(int32(7)), SubTaskIds: []*int32{new(int32(8))}}, nil
+	return &documentTaskCreateOutput{TaskID: new(int32(7)), SubtaskIDs: []*int32{new(int32(8))}}, nil
 }
 
-func (f *fakeDocumentAPI) DocumentTaskDetailWithContext(_ context.Context, _ *i18nopenapi.DocumentTaskDetailInput, _ ...request.Option) (*i18nopenapi.DocumentTaskDetailOutput, error) {
+func (f *fakeDocumentAPI) DocumentTaskDetailWithContext(_ context.Context, _ *documentTaskDetailInput) (*documentTaskDetailOutput, error) {
 	if f.detailErr != nil {
 		return nil, f.detailErr
 	}
@@ -40,12 +36,12 @@ func (f *fakeDocumentAPI) DocumentTaskDetailWithContext(_ context.Context, _ *i1
 	return result, nil
 }
 
-func (f *fakeDocumentAPI) DocumentTaskStopWithContext(_ context.Context, _ *i18nopenapi.DocumentTaskStopInput, _ ...request.Option) (*i18nopenapi.DocumentTaskStopOutput, error) {
-	return &i18nopenapi.DocumentTaskStopOutput{}, nil
+func (f *fakeDocumentAPI) DocumentTaskStopWithContext(_ context.Context, _ *documentTaskStopInput) (*documentTaskStopOutput, error) {
+	return &documentTaskStopOutput{}, nil
 }
 
-func (f *fakeDocumentAPI) DocumentTaskDeleteWithContext(_ context.Context, _ *i18nopenapi.DocumentTaskDeleteInput, _ ...request.Option) (*i18nopenapi.DocumentTaskDeleteOutput, error) {
-	return &i18nopenapi.DocumentTaskDeleteOutput{}, nil
+func (f *fakeDocumentAPI) DocumentTaskDeleteWithContext(_ context.Context, _ *documentTaskDeleteInput) (*documentTaskDeleteOutput, error) {
+	return &documentTaskDeleteOutput{}, nil
 }
 
 func TestDocumentProjectStopDelete(t *testing.T) {
@@ -91,13 +87,13 @@ func TestCreateTaskMapsFieldsAndDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask returned error: %v", err)
 	}
-	if fake.createTaskInput.ProjectId == nil || *fake.createTaskInput.ProjectId != 3 {
-		t.Fatalf("project ID = %#v", fake.createTaskInput.ProjectId)
+	if fake.createTaskInput.ProjectID == nil || *fake.createTaskInput.ProjectID != 3 {
+		t.Fatalf("project ID = %#v", fake.createTaskInput.ProjectID)
 	}
 	if got := *fake.createTaskInput.Deadline; got != "2026-11-21T02:00:00.123Z" {
 		t.Fatalf("deadline = %q", got)
 	}
-	if got := *fake.createTaskInput.DocUrlList[0].Url; got != "https://example/a.md" {
+	if got := *fake.createTaskInput.DocURLList[0].URL; got != "https://example/a.md" {
 		t.Fatalf("URL = %q", got)
 	}
 }
@@ -146,9 +142,9 @@ func TestTranslateFileRequiresTOS(t *testing.T) {
 }
 
 func TestWaitTaskCompletesAndCallsProgress(t *testing.T) {
-	fake := &fakeDocumentAPI{details: []*i18nopenapi.DocumentTaskDetailOutput{
-		{TaskInfo: &i18nopenapi.TaskInfoForDocumentTaskDetailOutput{State: new(int32(2)), TaskId: new(int32(9))}},
-		{TaskInfo: &i18nopenapi.TaskInfoForDocumentTaskDetailOutput{State: new(int32(3)), TaskId: new(int32(9))}},
+	fake := &fakeDocumentAPI{details: []*documentTaskDetailOutput{
+		{TaskInfo: &documentTaskDetailTaskInfo{State: new(int32(2)), ID: new(int32(9))}},
+		{TaskInfo: &documentTaskDetailTaskInfo{State: new(int32(3)), ID: new(int32(9))}},
 	}}
 	progress := 0
 	service := &DocumentService{
@@ -166,8 +162,8 @@ func TestWaitTaskCompletesAndCallsProgress(t *testing.T) {
 }
 
 func TestWaitTaskAborted(t *testing.T) {
-	fake := &fakeDocumentAPI{details: []*i18nopenapi.DocumentTaskDetailOutput{
-		{TaskInfo: &i18nopenapi.TaskInfoForDocumentTaskDetailOutput{State: new(int32(4))}},
+	fake := &fakeDocumentAPI{details: []*documentTaskDetailOutput{
+		{TaskInfo: &documentTaskDetailTaskInfo{State: new(int32(4))}},
 	}}
 	service := &DocumentService{api: fake, sleep: func(context.Context, time.Duration) error { return nil }}
 	_, err := service.WaitTask(t.Context(), 1, 9, PollPolicy{Timeout: time.Second})

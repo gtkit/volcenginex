@@ -17,6 +17,7 @@ type fakeTextAPI struct {
 	translate func(context.Context, *translate20250301.TranslateTextInput) (*translate20250301.TranslateTextOutput, error)
 	detect    func(context.Context, *translate20250301.LangDetectInput) (*translate20250301.LangDetectOutput, error)
 	usage     func(context.Context, *translate20250301.GetUsageInput) (*translate20250301.GetUsageOutput, error)
+	usageRaw  func(context.Context, *map[string]any) (*map[string]any, error)
 }
 
 func (f *fakeTextAPI) TranslateTextWithContext(ctx context.Context, input *translate20250301.TranslateTextInput, _ ...request.Option) (*translate20250301.TranslateTextOutput, error) {
@@ -29,6 +30,10 @@ func (f *fakeTextAPI) LangDetectWithContext(ctx context.Context, input *translat
 
 func (f *fakeTextAPI) GetUsageWithContext(ctx context.Context, input *translate20250301.GetUsageInput, _ ...request.Option) (*translate20250301.GetUsageOutput, error) {
 	return f.usage(ctx, input)
+}
+
+func (f *fakeTextAPI) GetUsageCommonWithContext(ctx context.Context, input *map[string]any, _ ...request.Option) (*map[string]any, error) {
+	return f.usageRaw(ctx, input)
 }
 
 func TestTextTranslateBatchesAndPreservesOrder(t *testing.T) {
@@ -67,6 +72,13 @@ func TestTextTranslateBatchesAndPreservesOrder(t *testing.T) {
 	if result.RequestID != "request-1" {
 		t.Fatalf("request ID = %q", result.RequestID)
 	}
+	wantCharacters := 0
+	for _, text := range texts {
+		wantCharacters += CountVolcMTChar(text)
+	}
+	if result.CharacterCount != wantCharacters {
+		t.Fatalf("character count = %d, want %d", result.CharacterCount, wantCharacters)
+	}
 	for i, item := range result.Items {
 		want := "translated:" + texts[i]
 		if item.Index != i || item.Translation != want {
@@ -92,6 +104,9 @@ func TestTextTranslateSkipsBlankItems(t *testing.T) {
 	if len(result.Items) != 2 || result.Items[0].Translation != "" || result.Items[1].Translation != "" {
 		t.Fatalf("unexpected blank result: %#v", result.Items)
 	}
+	if result.CharacterCount != 0 {
+		t.Fatalf("blank character count = %d, want 0", result.CharacterCount)
+	}
 }
 
 func TestTextTranslatePartialFailure(t *testing.T) {
@@ -112,6 +127,9 @@ func TestTextTranslatePartialFailure(t *testing.T) {
 	}
 	if len(result.Errors) != 1 {
 		t.Fatalf("got %d partial errors, want 1", len(result.Errors))
+	}
+	if result.CharacterCount != CountVolcMTChar("two") {
+		t.Fatalf("character count = %d, want %d", result.CharacterCount, CountVolcMTChar("two"))
 	}
 }
 

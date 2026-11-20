@@ -5,8 +5,6 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	"github.com/volcengine/volcengine-go-sdk/service/i18nopenapi"
 )
 
 func TestMiscBranches(t *testing.T) {
@@ -32,7 +30,7 @@ func TestMiscBranches(t *testing.T) {
 }
 
 func TestDocumentTranslateFileWithExistingDocs(t *testing.T) {
-	fake := &fakeDocumentAPI{details: []*i18nopenapi.DocumentTaskDetailOutput{{TaskInfo: &i18nopenapi.TaskInfoForDocumentTaskDetailOutput{State: new(int32(3)), TaskId: new(int32(9))}}}}
+	fake := &fakeDocumentAPI{details: []*documentTaskDetailOutput{{TaskInfo: &documentTaskDetailTaskInfo{State: new(int32(3)), ID: new(int32(9))}}}}
 	service := &DocumentService{
 		client: &Client{tos: &TOSService{}},
 		api:    fake,
@@ -45,5 +43,28 @@ func TestDocumentTranslateFileWithExistingDocs(t *testing.T) {
 	})
 	if err != nil || result == nil || result.Detail.State != TaskDone {
 		t.Fatalf("result=%#v err=%v", result, err)
+	}
+	if result.EstimatedCharacterCount != 0 {
+		t.Fatalf("unexpected uploaded document estimate = %d", result.EstimatedCharacterCount)
+	}
+}
+
+func TestDocumentEstimateUsesInlineContent(t *testing.T) {
+	fake := &fakeDocumentAPI{details: []*documentTaskDetailOutput{{TaskInfo: &documentTaskDetailTaskInfo{State: new(int32(3)), ID: new(int32(9))}}}}
+	service := &DocumentService{
+		client: &Client{tos: &TOSService{}},
+		api:    fake,
+		sleep:  func(context.Context, time.Duration) error { return nil },
+	}
+	result, err := service.TranslateFile(t.Context(), FileTranslateRequest{
+		ProjectID: 1,
+		TaskName:  "task",
+		Docs:      []DocInput{{Name: "inline.md", Type: DocTypeMd, Content: "你好 🙂"}},
+	})
+	if err != nil {
+		t.Fatalf("TranslateFile returned error: %v", err)
+	}
+	if result.EstimatedCharacterCount != CountVolcMTChar("你好 🙂") {
+		t.Fatalf("estimate = %d, want %d", result.EstimatedCharacterCount, CountVolcMTChar("你好 🙂"))
 	}
 }

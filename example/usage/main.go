@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"time"
 
 	volcx "github.com/gtkit/volcenginex"
 )
@@ -24,7 +25,10 @@ func main() {
 			fmt.Println("close client:", closeErr)
 		}
 	}()
-	usage, err := client.Text().Usage(context.Background())
+	now := time.Now().UTC()
+	from := int32(now.Add(-24 * time.Hour).Unix())
+	to := int32(now.Unix())
+	usage, err := client.Text().GetUsageCommon(context.Background(), from, to)
 	if err != nil {
 		fmt.Println("usage:", err)
 		return

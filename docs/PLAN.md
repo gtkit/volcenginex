@@ -8,7 +8,7 @@
 
 - 当前仓库只有 `go.mod`、`version.go`、Makefile 和规则文件。
 - 当前 `go.mod` 是 `github.com/gtkit/go-volcengine`，需求文档要求 `github.com/gtkit/volcenginex`。
-- `volcengine-go-sdk v1.0.146` 实际不包含目标服务包，已核实并采用包含 `translate20250301` 和 `i18nopenapi` 的 `v1.2.53`。
+- `volcengine-go-sdk v1.0.146` 实际不包含目标服务包，已核实并采用包含 `translate20250301` 的 `v1.2.65`；文档接口通过官方 SDK 请求处理管线调用 `i18n_openapi`，不再导入生成的 `i18nopenapi` 包。
 - 本次其他依赖 API 已从本地模块缓存和源码核对。
 - 需求文档指定官方服务、字段映射、请求 ID、限制值、轮询策略和 HTTP/JSON 传输分工。
 

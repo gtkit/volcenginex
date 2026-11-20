@@ -7,7 +7,6 @@ import (
 	"github.com/gtkit/httpc"
 	"github.com/gtkit/volcenginex/internal/jsoncodec"
 	"github.com/gtkit/volcenginex/internal/trace"
-	"github.com/volcengine/volcengine-go-sdk/service/i18nopenapi"
 	"github.com/volcengine/volcengine-go-sdk/service/translate20250301"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/client"
@@ -73,7 +72,7 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 
 	textClient := translate20250301.New(sess)
-	documentClient := i18nopenapi.New(sess)
+	documentClient := newDocumentAPI(sess)
 	logger := loggerOrDiscard(cfg.Logger)
 	client := &Client{
 		httpClient: hc,

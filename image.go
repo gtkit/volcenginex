@@ -75,5 +75,7 @@ func (s *ImageService) translateEncoded(ctx context.Context, req ImageTranslateR
 	if err != nil {
 		return nil, providerError("TranslateImage", err)
 	}
-	return imageOutput(out), nil
+	result := imageOutput(out)
+	result.ImageCount = 1
+	return result, nil
 }

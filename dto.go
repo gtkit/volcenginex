@@ -16,10 +16,14 @@ type TextTranslateRequest struct {
 type TextTranslateResult struct {
 	_ struct{}
 
-	Items     []TextItem
-	Usage     *Usage
-	RequestID string
-	Errors    []error
+	Items []TextItem
+	// CharacterCount is a local rune-based estimate for successful text batches.
+	// It is for display or pre-deduction only. Final billing comes from the
+	// Volcengine bill and GetUsageCommon.
+	CharacterCount int
+	Usage          *Usage
+	RequestID      string
+	Errors         []error
 }
 
 // TextItem is one translated text item.
@@ -69,7 +73,9 @@ type ImageTranslateRequest struct {
 type ImageTranslateResult struct {
 	_ struct{}
 
-	ImageURL   string
+	ImageURL string
+	// ImageCount is the number of images represented by this result.
+	ImageCount int
 	TextBlocks []ImageTextBlock
 	RequestID  string
 }
@@ -273,6 +279,10 @@ type Translation struct {
 
 	Task   *Task
 	Detail *TaskDetail
+	// EstimatedCharacterCount is a local estimate from caller-provided inline
+	// document content. Volcengine extracts uploaded document text internally,
+	// so this value can be zero or differ from the final bill.
+	EstimatedCharacterCount int
 }
 
 // UploadedObject describes an uploaded TOS object.
