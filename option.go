@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gtkit/httpc"
-	"github.com/gtkit/restyx"
 )
 
 const (
@@ -36,7 +35,6 @@ type Config struct {
 	ImageMaxBytes  int64
 	partialFailure bool
 	progressHook   func(*TaskDetail)
-	restyxClient   *restyx.Client
 }
 
 // PollPolicy controls document task polling.
@@ -191,17 +189,6 @@ func WithTOS(cfg TOSConfig) Option {
 			return ErrInvalidArgument
 		}
 		c.TOS = &cfg
-		return nil
-	}
-}
-
-// WithRestyxClient stores an optional REST client for future internal REST integrations.
-func WithRestyxClient(rc *restyx.Client) Option {
-	return func(c *Config) error {
-		if rc == nil {
-			return ErrInvalidArgument
-		}
-		c.restyxClient = rc
 		return nil
 	}
 }

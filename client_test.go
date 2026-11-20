@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gtkit/httpc"
-	"github.com/gtkit/restyx"
 )
 
 type testLogger struct{}
@@ -48,7 +47,6 @@ func TestOptionsValidateAndApply(t *testing.T) {
 		WithLogger(testLogger{}),
 		WithPollPolicy(PollPolicy{Interval: time.Second, MaxInterval: 2 * time.Second, Timeout: time.Minute, Jitter: 0.1}),
 		WithTOS(TOSConfig{Endpoint: "https://tos.example", Bucket: "bucket"}),
-		WithRestyxClient(restyx.New()),
 		WithPartialFailure(),
 		WithProgressHook(func(*TaskDetail) {}),
 		WithMaxImageBytes(1024),
@@ -64,7 +62,7 @@ func TestOptionsValidateAndApply(t *testing.T) {
 	}
 	invalid := []Option{
 		WithRegion(""), WithHTTPClient(nil), WithHTTPC(nil), WithMaxRetries(-1), WithTimeout(0),
-		WithPollPolicy(PollPolicy{Jitter: 2}), WithTOS(TOSConfig{}), WithRestyxClient(nil),
+		WithPollPolicy(PollPolicy{Jitter: 2}), WithTOS(TOSConfig{}),
 		WithProgressHook(nil), WithMaxImageBytes(0),
 	}
 	for _, option := range invalid {
