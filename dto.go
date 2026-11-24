@@ -9,7 +9,9 @@ type TextTranslateRequest struct {
 	SourceLanguage string
 	TargetLanguage string
 	TextList       []string
-	BatchSize      int
+	// BatchSize limits the number of segments per request. Zero uses the default of 16.
+	// Each request is capped at 16 segments and 5000 Unicode characters.
+	BatchSize int
 }
 
 // TextTranslateResult contains translations in the same order as TextList.

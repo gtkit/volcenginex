@@ -2,15 +2,19 @@ package volcenginex
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/gtkit/volcenginex/internal/trace"
 	"github.com/volcengine/volcengine-go-sdk/service/translate20250301"
+	"github.com/volcengine/volcengine-go-sdk/volcengine/response"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/semaphore"
 )
+
+const maxTextBatchCharacters = 5000
 
 // TextService wraps the official synchronous text translation APIs.
 type TextService struct {
@@ -20,7 +24,8 @@ type TextService struct {
 	partialFailure bool
 }
 
-// Translate translates text items while preserving their original order.
+// Translate translates text segments while preserving their original order.
+// It rejects any nonblank segment exceeding 5000 Unicode characters before sending requests.
 func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (*TextTranslateResult, error) {
 	if ctx == nil {
 		return nil, ErrInvalidArgument
@@ -37,14 +42,11 @@ func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (
 	}
 
 	result := &TextTranslateResult{Items: make([]TextItem, len(req.TextList))}
-	indexes := make([]int, 0, len(req.TextList))
-	for i, text := range req.TextList {
-		result.Items[i] = TextItem{Index: i, Source: text}
-		if strings.TrimSpace(text) != "" {
-			indexes = append(indexes, i)
-		}
+	batches, err := prepareTextBatches(req.TextList, result.Items, min(batchSize, defaultBatchSize))
+	if err != nil {
+		return nil, err
 	}
-	if len(indexes) == 0 {
+	if len(batches) == 0 {
 		return result, nil
 	}
 
@@ -56,11 +58,9 @@ func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (
 	limit := semaphore.NewWeighted(4)
 	var mu sync.Mutex
 	var firstErr error
-	for start := 0; start < len(indexes); start += batchSize {
-		end := min(start+batchSize, len(indexes))
-		batchIndexes := append([]int(nil), indexes[start:end]...)
-		batchTexts := make([]string, len(batchIndexes))
-		for i, index := range batchIndexes {
+	for _, batch := range batches {
+		batchTexts := make([]string, len(batch.indexes))
+		for i, index := range batch.indexes {
 			batchTexts[i] = req.TextList[index]
 		}
 		g.Go(func() error {
@@ -74,9 +74,8 @@ func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (
 				return err
 			}
 			defer limit.Release(1)
-			out, err := s.api.TranslateTextWithContext(workerCtx, textInput(req, batchTexts))
-			if err != nil {
-				mapped := providerError("TranslateText", err)
+			out, err := s.api.TranslateTextWithContext(workerCtx, textInput(req, batchTexts), retainNumericProviderError)
+			if mapped := validateTranslationResponse(workerCtx, out, len(batchTexts), err); mapped != nil {
 				if s.partialFailure {
 					mu.Lock()
 					result.Errors = append(result.Errors, mapped)
@@ -91,21 +90,12 @@ func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (
 				return mapped
 			}
 			mu.Lock()
-			for _, text := range batchTexts {
-				result.CharacterCount += CountVolcMTChar(text)
-			}
-			if out == nil {
-				mu.Unlock()
-				return nil
-			}
+			result.CharacterCount += batch.characters
 			if id := requestIDFromMetadata(out.Metadata); id != "" && result.RequestID == "" {
 				result.RequestID = id
 			}
 			for i, item := range out.TranslationList {
-				if i >= len(batchIndexes) || item == nil {
-					continue
-				}
-				index := batchIndexes[i]
+				index := batch.indexes[i]
 				result.Items[index].Translation = valueOrEmpty(item.Translation)
 				result.Items[index].DetectedSourceLanguage = valueOrEmpty(item.DetectedSourceLanguage)
 			}
@@ -123,6 +113,57 @@ func (s *TextService) Translate(ctx context.Context, req TextTranslateRequest) (
 		result.RequestID = requestID
 	}
 	return result, nil
+}
+
+type textBatch struct {
+	indexes    []int
+	characters int
+}
+
+func prepareTextBatches(texts []string, items []TextItem, batchSize int) ([]textBatch, error) {
+	var batches []textBatch
+	var batch textBatch
+	for i, segment := range texts {
+		items[i] = TextItem{Index: i, Source: segment}
+		if strings.TrimSpace(segment) == "" {
+			continue
+		}
+		characters := CountVolcMTChar(segment)
+		if characters > maxTextBatchCharacters {
+			message := fmt.Sprintf("text segment at index %d exceeds %d characters", i, maxTextBatchCharacters)
+			return nil, wrapSentinel("TranslateText", ErrInvalidArgument, message)
+		}
+		if len(batch.indexes) == batchSize || batch.characters+characters > maxTextBatchCharacters {
+			batches = append(batches, batch)
+			batch = textBatch{}
+		}
+		batch.indexes = append(batch.indexes, i)
+		batch.characters += characters
+	}
+	if len(batch.indexes) != 0 {
+		batches = append(batches, batch)
+	}
+	return batches, nil
+}
+
+func validateTranslationResponse(ctx context.Context, out *translate20250301.TranslateTextOutput, expected int, err error) error {
+	const op = "TranslateText"
+	var metadata *response.ResponseMetadata
+	if out != nil {
+		metadata = out.Metadata
+	}
+	if err := providerResponseError(ctx, op, metadata, err); err != nil {
+		return err
+	}
+	if out == nil || len(out.TranslationList) != expected {
+		return invalidProviderResponse(op, metadata, "translation count does not match input")
+	}
+	for _, item := range out.TranslationList {
+		if item == nil || strings.TrimSpace(valueOrEmpty(item.Translation)) == "" {
+			return invalidProviderResponse(op, metadata, "translation is empty")
+		}
+	}
+	return nil
 }
 
 // Detect detects the language of each non-blank text item.

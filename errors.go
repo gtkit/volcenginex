@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
+	"github.com/volcengine/volcengine-go-sdk/volcengine/custom"
+	"github.com/volcengine/volcengine-go-sdk/volcengine/request"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/response"
 	"github.com/volcengine/volcengine-go-sdk/volcengine/volcengineerr"
 )
@@ -67,6 +70,16 @@ func (e *Error) Error() string {
 // Unwrap returns the underlying provider or transport error.
 func (e *Error) Unwrap() error { return e.Err }
 
+// CodeN returns the numeric provider error code when supplied for a text translation request.
+func (e *Error) CodeN() (int, bool) {
+	if e != nil {
+		if numeric, ok := errors.AsType[*numericProviderError](e.Err); ok {
+			return numeric.code, true
+		}
+	}
+	return 0, false
+}
+
 // Is preserves sentinel matching through a normalized error.
 func (e *Error) Is(target error) bool {
 	if target == nil {
@@ -106,6 +119,55 @@ func providerError(op string, err error) error {
 		e.Message = "provider request failed"
 	}
 	return e
+}
+
+type numericProviderError struct {
+	volcengineerr.RequestFailure
+	code int
+}
+
+func (e *numericProviderError) Unwrap() error { return e.RequestFailure }
+
+func newNumericProviderError(metadata *response.ResponseMetadata, status int, simple *bool) error {
+	code := metadata.Error.Code
+	if code == "" {
+		code = strconv.Itoa(metadata.Error.CodeN)
+	}
+	cause := volcengineerr.New(code, metadata.Error.Message, nil)
+	return &numericProviderError{
+		RequestFailure: volcengineerr.NewRequestFailure(cause, status, metadata.RequestId, simple),
+		code:           metadata.Error.CodeN,
+	}
+}
+
+func retainNumericProviderError(req *request.Request) {
+	req.Config.CustomerUnmarshalError = func(_ context.Context, _ custom.RequestMetadata, raw response.VolcengineResponse) error {
+		metadata := raw.ResponseMetadata
+		if metadata == nil || metadata.Error == nil || metadata.Error.CodeN == 0 {
+			return nil
+		}
+		return newNumericProviderError(metadata, req.HTTPResponse.StatusCode, req.Config.SimpleError)
+	}
+}
+
+func providerResponseError(ctx context.Context, op string, metadata *response.ResponseMetadata, err error) error {
+	if err != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
+	// The SDK leaves a CodeN-only error in the metadata on HTTP 200.
+	if err == nil && metadata != nil && metadata.Error != nil && metadata.Error.CodeN != 0 {
+		err = newNumericProviderError(metadata, metadata.HTTPCode, nil)
+	}
+	return providerError(op, err)
+}
+
+func invalidProviderResponse(op string, metadata *response.ResponseMetadata, message string) error {
+	err := &Error{Op: op, Code: "InvalidResponse", Message: message, Retryable: true}
+	if metadata != nil {
+		err.RequestID = metadata.RequestId
+		err.HTTPStatus = metadata.HTTPCode
+	}
+	return err
 }
 
 func retryableError(err error) bool {

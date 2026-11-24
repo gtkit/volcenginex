@@ -33,6 +33,7 @@ type Config struct {
 	Logger         Logger
 	TOS            *TOSConfig
 	ImageMaxBytes  int64
+	maxRetriesSet  bool
 	partialFailure bool
 	progressHook   func(*TaskDetail)
 }
@@ -141,13 +142,15 @@ func WithHTTPC(hc *httpc.Client) Option {
 	}
 }
 
-// WithMaxRetries sets the official SDK retry count.
+// WithMaxRetries sets the official SDK retry count. Zero disables retries.
+// An unset retry count defaults to three.
 func WithMaxRetries(n int) Option {
 	return func(c *Config) error {
 		if n < 0 {
 			return ErrInvalidArgument
 		}
 		c.MaxRetries = n
+		c.maxRetriesSet = true
 		return nil
 	}
 }
@@ -236,7 +239,7 @@ func withConfigDefaults(c *Config) {
 	if c.Region == "" {
 		c.Region = defaultRegion
 	}
-	if c.MaxRetries == 0 {
+	if c.MaxRetries == 0 && !c.maxRetriesSet {
 		c.MaxRetries = defaultMaxRetries
 	}
 	if c.RequestTimeout == 0 {
