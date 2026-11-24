@@ -26,9 +26,8 @@ func main() {
 		}
 	}()
 	now := time.Now().UTC()
-	from := int32(now.Add(-24 * time.Hour).Unix())
-	to := int32(now.Unix())
-	usage, err := client.Text().GetUsageCommon(context.Background(), from, to)
+	from := now.Add(-24 * time.Hour)
+	usage, err := client.GetUsage(context.Background(), volcx.UsageServiceText, from, now)
 	if err != nil {
 		fmt.Println("usage:", err)
 		return

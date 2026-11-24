@@ -1,16 +1,18 @@
 # volcenginex
 
-`volcenginex` 是独立的火山引擎翻译 Go 库，提供文本翻译、语种检测、图片翻译、音视频文件翻译、文本用量查询和可选的云文档任务接口。
+`volcenginex` 是独立的火山引擎翻译 Go 库，提供文本翻译、语种检测、图片翻译、音视频文件翻译、按服务查询翻译用量和可选的云文档任务接口。
 
 ## 能力矩阵
 
 | 能力 | 官方服务 | 语义 | 计费边界 |
 |---|---|---|---|
-| 文本翻译、语言检测、用量 | `translate` | 同步 | 机器翻译字符后付费 |
+| 文本翻译、语言检测 | `translate` | 同步 | 机器翻译字符后付费 |
 | 图片翻译 | `translate` | 同步 | 机器翻译图片服务 |
 | 音视频文件翻译 | `translate` | 异步 | 机器翻译音视频服务 |
+| 翻译用量查询 | `translate` | 同步 | 查询文本、图片或音视频的上游用量 |
 | 文档项目、任务、轮询 | `i18n_openapi` | 异步 | 国际化翻译平台套餐/额度 |
 | TOS 上传与译文下载 | TOS/HTTP | 传输 | 由对应存储与翻译产品计费 |
+| CC-CEDICT 汉英查词 | 本地词库 | 同步 | 无云端请求 |
 
 ## 快速开始
 
@@ -36,6 +38,25 @@ result, err := client.Text().Translate(ctx, volcx.TextTranslateRequest{
 `WithMaxRetries(0)` 禁用官方 SDK 重试，未设置时默认重试三次。文本翻译会校验上游译文条数和内容，只有有效批次计入 `CharacterCount`。如果上游返回数值错误码，可通过 `(*Error).CodeN()` 读取。
 
 `Image().TranslateURL()` 从公网 HTTP/HTTPS 地址下载图片，再发送编码后的字节。下载使用独立的直连客户端，遵循 `WithTimeout` 和 `WithMaxImageBytes`。需要访问私网或自定义代理、鉴权的调用方，可用自己的客户端取得图片字节，再调用 `Image().Translate()`。
+
+## CC-CEDICT 离线汉英查词
+
+从 [MDBG 下载 CC-CEDICT v1 UTF-8 词库](https://www.mdbg.net/chinese/dictionary?lang=en&page=cc-cedict)，选择 `cedict_1_0_ts_utf-8_mdbg.zip`。解压后把文本文件路径传给 `cedict.LoadFile`。`cedict_ts.u8` 和 `cedict_1_0_ts_utf-8_mdbg.txt` 都是常见文件名。词库数据由 MDBG 发布，采用 [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)。
+
+```go
+import "github.com/gtkit/volcenginex/cedict"
+
+// 在应用启动时加载，后续请求共享这个字典。
+dict, err := cedict.LoadFile(dictionaryPath)
+if err != nil {
+    return err
+}
+for _, entry := range dict.Lookup("苹果") {
+    fmt.Println(entry.Pinyin, entry.Definitions)
+}
+```
+
+`Lookup` 精确匹配简体或繁体词头，按词库中的顺序返回全部匹配词条及各自的英文释义。首尾空白会被忽略，未命中时返回 `nil`。字典可并发复用，无需火山引擎凭据。查词适用于词库已收录的单词和短语。
 
 ## 音视频文件翻译
 
@@ -63,7 +84,7 @@ for _, subtitle := range result.Subtitles {
 
 ## 机器翻译错误
 
-文本翻译、语种检测、图片翻译、音视频任务提交和查询、文本用量接口返回的上游错误可用 `errors.AsType[*volcx.Error](err)` 读取。使用 `Code` 判断错误类型，用 `Message` 获取上游实际文案，用 `RequestID` 排查请求。上游提供数字码时，`CodeN()` 返回数字码和 `true`。
+文本翻译、语种检测、图片翻译、音视频任务提交和查询、用量查询接口返回的上游错误可用 `errors.AsType[*volcx.Error](err)` 读取。使用 `Code` 判断错误类型，用 `Message` 获取上游实际文案，用 `RequestID` 排查请求。上游提供数字码时，`CodeN()` 返回数字码和 `true`。
 
 ```go
 if apiErr, ok := errors.AsType[*volcx.Error](err); ok {
@@ -125,10 +146,18 @@ func translateHandler(client *volcx.Client) http.Handler {
 
 `Text().Translate` 返回的 `CharacterCount` 只用于本地展示或预扣。图片结果的 `ImageCount` 统计图片张数，不统计 OCR 字符。文档全链路结果的 `EstimatedCharacterCount` 只统计调用方提供的内联文本，上传文件由火山内部抽取文本，实际账单可能存在偏差。
 
-`Text().Usage()` 查询北京时间含当天的最近 30 个自然日。`Text().GetUsageCommon(ctx, from, to)` 接收闭区间 Unix 秒，按北京时间转换为日期，返回覆盖日期的文本翻译用量。这个日粒度查询适合后台对账。
+`Client.GetUsage(ctx, service, from, to)` 使用 `UsageServiceText`、`UsageServiceImage` 或 `UsageServiceAudio` 选择查询服务。`from` 和 `to` 是 `time.Time`，按北京时间转换为日期，查询包含首尾两天。
 
 ```go
-usage, err := client.Text().GetUsageCommon(ctx, fromUnix, toUnix)
-if err != nil { return err }
-fmt.Println(len(usage.Points))
+for _, service := range []volcx.UsageService{volcx.UsageServiceImage, volcx.UsageServiceAudio} {
+    usage, err := client.GetUsage(ctx, service, from, to)
+    if err != nil { return err }
+    fmt.Println(service, usage.Points)
+}
 ```
+
+`Usage.Points` 保留上游的 `Timestamp`、`Value` 和顺序。图片及音视频的 `Value` 单位和取整规则待线上实测。
+
+文本用量查询也使用 `Client.GetUsage`，将服务指定为 `UsageServiceText`。完整调用见 [可运行示例](example/usage/main.go)。
+
+兼容入口 `Text().Usage()` 查询北京时间含当天的最近 30 个自然日。`Text().GetUsageCommon(ctx, from, to)` 接收闭区间 Unix 秒，按北京时间查询覆盖日期的文本翻译用量。

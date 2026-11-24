@@ -151,3 +151,128 @@ func TestGetUsageCommonValidationAndProviderError(t *testing.T) {
 		t.Fatalf("provider error = %v", err)
 	}
 }
+
+func TestClientGetUsageHTTP(t *testing.T) {
+	t.Parallel()
+	beforeMidnight := time.Date(2026, time.November, 23, 15, 59, 59, 0, time.UTC)
+	afterMidnight := beforeMidnight.Add(time.Second)
+	type usageBody struct {
+		Service string
+		From    int32
+		To      int32
+	}
+	for _, tc := range []struct {
+		name     string
+		service  UsageService
+		from, to time.Time
+		request  usageBody
+		response string
+		points   []UsagePoint
+	}{
+		{
+			name: "text across Beijing midnight", service: UsageServiceText,
+			from: beforeMidnight, to: afterMidnight,
+			request:  usageBody{Service: "text", From: 20261123, To: 20261124},
+			response: `{"Result":{"Points":[{"Timestamp":20261124,"Value":19}]}}`,
+			points:   []UsagePoint{{Timestamp: 20261124, Value: 19}},
+		},
+		{
+			name: "images on one Beijing date with a zero point", service: UsageServiceImage,
+			from: afterMidnight.Add(time.Hour), to: afterMidnight,
+			request:  usageBody{Service: "image", From: 20261124, To: 20261124},
+			response: `{"Result":{"Points":[{"Timestamp":20261124,"Value":0}]}}`,
+			points:   []UsagePoint{{Timestamp: 20261124, Value: 0}},
+		},
+		{
+			name: "audio preserves provider order and values", service: UsageServiceAudio,
+			from: beforeMidnight, to: afterMidnight,
+			request:  usageBody{Service: "audio", From: 20261123, To: 20261124},
+			response: `{"Result":{"Points":[{"Timestamp":20261124,"Value":98765},{"Timestamp":20261123,"Value":43210}]}}`,
+			points:   []UsagePoint{{Timestamp: 20261124, Value: 98765}, {Timestamp: 20261123, Value: 43210}},
+		},
+		{
+			name: "audio with no usage", service: UsageServiceAudio,
+			from: afterMidnight, to: afterMidnight,
+			request:  usageBody{Service: "audio", From: 20261124, To: 20261124},
+			response: `{"Result":{"Points":[]}}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			calls := 0
+			client := providerTestClient(t, func(req *http.Request) (*http.Response, error) {
+				calls++
+				query := req.URL.Query()
+				if req.Method != http.MethodPost || query.Get("Action") != "GetUsage" || query.Get("Version") != "2025-03-01" {
+					t.Errorf("unexpected usage request: %s %s", req.Method, req.URL)
+				}
+				var body usageBody
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					return nil, errors.Join(err, req.Body.Close())
+				}
+				if body != tc.request {
+					t.Errorf("usage request = %+v, want %+v", body, tc.request)
+				}
+				return providerTestResponse(req, http.StatusOK, tc.response)
+			}, WithMaxRetries(0))
+
+			got, err := client.GetUsage(t.Context(), tc.service, tc.from, tc.to)
+			if err != nil || got == nil || !slices.Equal(got.Points, tc.points) || calls != 1 {
+				t.Fatalf("GetUsage = %#v, %v after %d requests, want points %+v in one request", got, err, calls, tc.points)
+			}
+		})
+	}
+}
+
+func TestClientGetUsageRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+	day := time.Date(2026, time.November, 24, 0, 0, 0, 0, time.UTC)
+	client := providerTestClient(t, func(req *http.Request) (*http.Response, error) {
+		t.Error("invalid usage arguments reached the transport")
+		return providerTestResponse(req, http.StatusBadRequest, `{}`)
+	}, WithMaxRetries(0))
+	for _, tc := range []struct {
+		name     string
+		ctx      context.Context
+		service  UsageService
+		from, to time.Time
+	}{
+		{name: "nil context", service: UsageServiceAudio, from: day, to: day},
+		{name: "empty service", ctx: t.Context(), from: day, to: day},
+		{name: "unsupported service", ctx: t.Context(), service: "speech", from: day, to: day},
+		{name: "zero start", ctx: t.Context(), service: UsageServiceImage, to: day},
+		{name: "zero end", ctx: t.Context(), service: UsageServiceImage, from: day},
+		{
+			name: "inverted Beijing dates in one UTC date", ctx: t.Context(), service: UsageServiceImage,
+			from: day.Add(16 * time.Hour), to: day.Add(15 * time.Hour),
+		},
+		{
+			name: "Beijing year outside date encoding", ctx: t.Context(), service: UsageServiceAudio,
+			from: day, to: time.Date(9999, time.December, 31, 16, 0, 0, 0, time.UTC),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := client.GetUsage(tc.ctx, tc.service, tc.from, tc.to)
+			if got != nil || !errors.Is(err, ErrInvalidArgument) {
+				t.Fatalf("GetUsage = %#v, %v, want ErrInvalidArgument", got, err)
+			}
+		})
+	}
+}
+
+func TestClientGetUsageRetainsNumericProviderError(t *testing.T) {
+	t.Parallel()
+	client := providerTestClient(t, func(req *http.Request) (*http.Response, error) {
+		return providerTestResponse(req, http.StatusOK, `{"ResponseMetadata":{"RequestId":"audio-usage-error","Error":{"CodeN":-400,"Message":"invalid range"}}}`)
+	}, WithMaxRetries(0))
+	day := time.Date(2026, time.November, 24, 0, 0, 0, 0, time.UTC)
+	usage, err := client.GetUsage(t.Context(), UsageServiceAudio, day, day)
+	apiErr, ok := errors.AsType[*Error](err)
+	if !ok || usage != nil || apiErr.Op != "GetUsage" || apiErr.RequestID != "audio-usage-error" {
+		t.Fatalf("GetUsage = %#v, %v, want structured provider error", usage, err)
+	}
+	if code, present := apiErr.CodeN(); !present || code != -400 {
+		t.Fatalf("CodeN = (%d, %t), want (-400, true)", code, present)
+	}
+}

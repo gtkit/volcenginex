@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- 新增 `cedict` 子包，支持从调用方提供的 CC-CEDICT v1 文本离线查询简繁中文词语的英文释义。
 - 新增火山引擎文本、图片和文档翻译 SDK 封装。
 - 新增 TOS 预签名上传、译文下载、轮询和统一错误模型。
 - 模块路径按需求约定使用 `github.com/gtkit/volcenginex`。
@@ -12,3 +13,4 @@
 - 修复文本用量查询的日期、服务参数和响应解码，保留 `GetUsageCommon()` 的 Unix 秒入参。
 - `Image().TranslateURL()` 先下载公网图片，再将字节提交给火山图片翻译。
 - 新增 `Audio().SubmitAudio()` 和 `Audio().QueryAudio()`，支持提交音视频文件翻译任务，并查询任务状态和带时间的字幕。
+- 新增 `Client.GetUsage()`，支持按服务查询文本、图片和音视频翻译用量。现有文本用量接口保持兼容，图片和音视频用量保留上游原值，单位待实测。

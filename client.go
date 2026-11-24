@@ -24,6 +24,7 @@ type Client struct {
 	text       *TextService
 	image      *ImageService
 	audio      *AudioService
+	usageAPI   translate20250301.TRANSLATE20250301API
 	document   *DocumentService
 	tos        *TOSService
 }
@@ -79,6 +80,7 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		httpClient: hc,
 		session:    sess,
 		logger:     logger,
+		usageAPI:   textClient,
 	}
 	client.text = &TextService{
 		client:         client,
