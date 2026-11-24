@@ -3,9 +3,9 @@ package volcenginex
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gtkit/volcenginex/internal/trace"
 	"github.com/volcengine/volcengine-go-sdk/service/translate20250301"
@@ -166,8 +166,11 @@ func validateTranslationResponse(ctx context.Context, out *translate20250301.Tra
 	return nil
 }
 
-// Detect detects the language of each non-blank text item.
+// Detect detects nonblank texts in batches of up to 16 items.
+// Results preserve input order and the original indexes. A failed batch returns an error and no results.
 func (s *TextService) Detect(ctx context.Context, texts []string) ([]DetectItem, error) {
+	const op = "LangDetect"
+	const maxBatchSize = 16
 	if ctx == nil {
 		return nil, ErrInvalidArgument
 	}
@@ -183,29 +186,24 @@ func (s *TextService) Detect(ctx context.Context, texts []string) ([]DetectItem,
 		return []DetectItem{}, nil
 	}
 	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
-	out, err := s.api.LangDetectWithContext(ctx, langDetectInput(values))
-	if err != nil {
-		return nil, providerError("LangDetect", err)
+	items := make([]DetectItem, 0, len(values))
+	for batch := range slices.Chunk(values, maxBatchSize) {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		out, err := s.api.LangDetectWithContext(ctx, langDetectInput(batch), retainNumericProviderError)
+		var metadata *response.ResponseMetadata
+		if out != nil {
+			metadata = out.Metadata
+		}
+		if err := providerResponseError(ctx, op, metadata, err); err != nil {
+			return nil, err
+		}
+		if out == nil || len(out.DetectedLanguageList) != len(batch) {
+			return nil, invalidProviderResponse(op, metadata, "detection count does not match input")
+		}
+		items = append(items, detectOutput(out, indexes[:len(batch)])...)
+		indexes = indexes[len(batch):]
 	}
-	return detectOutput(out, indexes), nil
-}
-
-// Usage returns the last thirty days of machine translation usage points.
-func (s *TextService) Usage(ctx context.Context) (*Usage, error) {
-	if ctx == nil {
-		return nil, ErrInvalidArgument
-	}
-	now := time.Now().UTC()
-	from := int32(now.Add(-30 * 24 * time.Hour).Unix())
-	to := int32(now.Unix())
-	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
-	out, err := s.api.GetUsageWithContext(ctx, &translate20250301.GetUsageInput{
-		From:    new(from),
-		To:      new(to),
-		Service: new(machineTranslationService),
-	})
-	if err != nil {
-		return nil, providerError("GetUsage", err)
-	}
-	return usageOutput(out), nil
+	return items, nil
 }

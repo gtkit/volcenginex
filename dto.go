@@ -102,6 +102,47 @@ type Point struct {
 	Y int32
 }
 
+// SubmitAudioRequest describes an audio or video file to translate.
+type SubmitAudioRequest struct {
+	_ struct{} // Require keyed initialization across packages.
+
+	// URI is the media file URL that Volcengine can fetch.
+	URI            string
+	SourceLanguage string
+	TargetLanguage string
+}
+
+// SubmitAudioResult identifies an accepted translation task.
+type SubmitAudioResult struct {
+	_ struct{} // Require keyed initialization across packages.
+
+	TaskID    string
+	RequestID string
+}
+
+// QueryAudioResult contains the current state and subtitles of a translation task.
+type QueryAudioResult struct {
+	_ struct{} // Require keyed initialization across packages.
+
+	// Status is the task status returned by Volcengine.
+	Status string
+	// Confidence is nil when Volcengine omits it.
+	Confidence *float64
+	Subtitles  []AudioSubtitle
+	RequestID  string
+}
+
+// AudioSubtitle is a time-aligned segment of recognized and translated text.
+type AudioSubtitle struct {
+	_ struct{} // Require keyed initialization across packages.
+
+	// StartTime and EndTime use the values returned by Volcengine.
+	StartTime   int32
+	EndTime     int32
+	Text        string
+	Translation string
+}
+
 // CreateProjectRequest creates a document translation project.
 type CreateProjectRequest struct {
 	_ struct{}

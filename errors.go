@@ -70,7 +70,7 @@ func (e *Error) Error() string {
 // Unwrap returns the underlying provider or transport error.
 func (e *Error) Unwrap() error { return e.Err }
 
-// CodeN returns the numeric provider error code when supplied for a text translation request.
+// CodeN returns the numeric provider error code when supplied by a machine translation endpoint.
 func (e *Error) CodeN() (int, bool) {
 	if e != nil {
 		if numeric, ok := errors.AsType[*numericProviderError](e.Err); ok {

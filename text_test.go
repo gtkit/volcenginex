@@ -17,7 +17,6 @@ type fakeTextAPI struct {
 	translate func(context.Context, *translate20250301.TranslateTextInput) (*translate20250301.TranslateTextOutput, error)
 	detect    func(context.Context, *translate20250301.LangDetectInput) (*translate20250301.LangDetectOutput, error)
 	usage     func(context.Context, *translate20250301.GetUsageInput) (*translate20250301.GetUsageOutput, error)
-	usageRaw  func(context.Context, *map[string]any) (*map[string]any, error)
 }
 
 func (f *fakeTextAPI) TranslateTextWithContext(ctx context.Context, input *translate20250301.TranslateTextInput, _ ...request.Option) (*translate20250301.TranslateTextOutput, error) {
@@ -30,10 +29,6 @@ func (f *fakeTextAPI) LangDetectWithContext(ctx context.Context, input *translat
 
 func (f *fakeTextAPI) GetUsageWithContext(ctx context.Context, input *translate20250301.GetUsageInput, _ ...request.Option) (*translate20250301.GetUsageOutput, error) {
 	return f.usage(ctx, input)
-}
-
-func (f *fakeTextAPI) GetUsageCommonWithContext(ctx context.Context, input *map[string]any, _ ...request.Option) (*map[string]any, error) {
-	return f.usageRaw(ctx, input)
 }
 
 func TestTextTranslateBatchesAndPreservesOrder(t *testing.T) {
@@ -141,7 +136,7 @@ func TestTextTranslateRejectsMissingTarget(t *testing.T) {
 	}
 }
 
-func TestTextDetectAndUsage(t *testing.T) {
+func TestTextDetect(t *testing.T) {
 	fake := &fakeTextAPI{}
 	fake.detect = func(_ context.Context, input *translate20250301.LangDetectInput) (*translate20250301.LangDetectOutput, error) {
 		if len(input.TextList) != 1 || *input.TextList[0] != "hello" {
@@ -149,19 +144,9 @@ func TestTextDetectAndUsage(t *testing.T) {
 		}
 		return &translate20250301.LangDetectOutput{DetectedLanguageList: []*translate20250301.DetectedLanguageListForLangDetectOutput{{Language: new("en"), Confidence: new(0.9)}}}, nil
 	}
-	fake.usage = func(_ context.Context, input *translate20250301.GetUsageInput) (*translate20250301.GetUsageOutput, error) {
-		if input.Service == nil || *input.Service != "translate" {
-			t.Fatalf("unexpected usage service: %#v", input.Service)
-		}
-		return &translate20250301.GetUsageOutput{Points: []*translate20250301.PointForGetUsageOutput{{Timestamp: new(int32(1)), Value: new(int32(2))}}}, nil
-	}
 	service := &TextService{api: fake, batchSize: 16}
 	detected, err := service.Detect(t.Context(), []string{" ", "hello"})
 	if err != nil || len(detected) != 1 || detected[0].Index != 1 || detected[0].Language != "en" {
 		t.Fatalf("detected=%#v err=%v", detected, err)
-	}
-	usage, err := service.Usage(t.Context())
-	if err != nil || len(usage.Points) != 1 || usage.Points[0].Value != 2 {
-		t.Fatalf("usage=%#v err=%v", usage, err)
 	}
 }

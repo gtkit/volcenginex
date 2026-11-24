@@ -3,18 +3,20 @@ package volcenginex
 import (
 	"context"
 	"encoding/base64"
+	"net/http"
 	"os"
 	"strings"
 
 	"github.com/gtkit/volcenginex/internal/trace"
 	"github.com/volcengine/volcengine-go-sdk/service/translate20250301"
+	"github.com/volcengine/volcengine-go-sdk/volcengine/response"
 )
 
 // ImageService wraps the official image translation API.
 type ImageService struct {
-	client   *Client
-	api      translate20250301.TRANSLATE20250301API
-	maxBytes int64
+	urlClient *http.Client
+	api       translate20250301.TRANSLATE20250301API
+	maxBytes  int64
 }
 
 // Translate translates image bytes after base64 encoding them.
@@ -35,7 +37,8 @@ func (s *ImageService) Translate(ctx context.Context, req ImageTranslateRequest)
 	return s.translateEncoded(ctx, req, encoded)
 }
 
-// TranslateURL translates an image URL through the same official image API.
+// TranslateURL downloads a public HTTP or HTTPS image and translates its bytes.
+// The download uses direct connections, the configured timeout and image size limit.
 func (s *ImageService) TranslateURL(ctx context.Context, url, source, target string) (*ImageTranslateResult, error) {
 	if ctx == nil {
 		return nil, ErrInvalidArgument
@@ -43,7 +46,11 @@ func (s *ImageService) TranslateURL(ctx context.Context, url, source, target str
 	if strings.TrimSpace(url) == "" || strings.TrimSpace(target) == "" {
 		return nil, wrapSentinel("TranslateImage", ErrInvalidArgument, "image URL and target language are required")
 	}
-	return s.translateEncoded(ctx, ImageTranslateRequest{SourceLanguage: source, TargetLanguage: target}, url)
+	data, err := s.fetchImage(ctx, url)
+	if err != nil {
+		return nil, err
+	}
+	return s.Translate(ctx, ImageTranslateRequest{Image: data, SourceLanguage: source, TargetLanguage: target})
 }
 
 // TranslateFile reads and translates a local image file.
@@ -71,9 +78,13 @@ func (s *ImageService) TranslateFile(ctx context.Context, path, source, target s
 
 func (s *ImageService) translateEncoded(ctx context.Context, req ImageTranslateRequest, encoded string) (*ImageTranslateResult, error) {
 	ctx = trace.WithRequestID(ctx, trace.NewRequestID())
-	out, err := s.api.TranslateImageWithContext(ctx, imageInput(req, encoded))
-	if err != nil {
-		return nil, providerError("TranslateImage", err)
+	out, err := s.api.TranslateImageWithContext(ctx, imageInput(req, encoded), retainNumericProviderError)
+	var metadata *response.ResponseMetadata
+	if out != nil {
+		metadata = out.Metadata
+	}
+	if err := providerResponseError(ctx, "TranslateImage", metadata, err); err != nil {
+		return nil, err
 	}
 	result := imageOutput(out)
 	result.ImageCount = 1

@@ -23,6 +23,7 @@ type Client struct {
 	logger     Logger
 	text       *TextService
 	image      *ImageService
+	audio      *AudioService
 	document   *DocumentService
 	tos        *TOSService
 }
@@ -85,7 +86,8 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		batchSize:      defaultBatchSize,
 		partialFailure: cfg.partialFailure,
 	}
-	client.image = &ImageService{client: client, api: textClient, maxBytes: cfg.ImageMaxBytes}
+	client.image = &ImageService{urlClient: newImageURLClient(cfg.RequestTimeout), api: textClient, maxBytes: cfg.ImageMaxBytes}
+	client.audio = &AudioService{api: textClient}
 	client.document = &DocumentService{
 		client:       client,
 		api:          documentClient,
@@ -109,6 +111,9 @@ func (c *Client) Text() *TextService { return c.text }
 // Image returns the synchronous image translation service.
 func (c *Client) Image() *ImageService { return c.image }
 
+// Audio returns the asynchronous audio and video file translation service.
+func (c *Client) Audio() *AudioService { return c.audio }
+
 // Document returns the asynchronous document translation service.
 func (c *Client) Document() *DocumentService { return c.document }
 
@@ -120,8 +125,13 @@ func (c *Client) Download(ctx context.Context, url, destPath string) (int64, err
 	return download(ctx, c.httpClient, url, destPath)
 }
 
-// Close releases client-owned resources.
-func (c *Client) Close() error { return nil }
+// Close releases idle connections from the image URL downloader.
+func (c *Client) Close() error {
+	if c != nil && c.image != nil && c.image.urlClient != nil {
+		c.image.urlClient.CloseIdleConnections()
+	}
+	return nil
+}
 
 var (
 	_ client.ConfigProvider    = (*session.Session)(nil)
