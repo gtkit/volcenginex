@@ -7,7 +7,7 @@
 - 移除 `Client.TOS()`、`Client.Document()`、`WithTOS`、`WithPollPolicy`、`WithProgressHook` 及相关类型和错误。这是破坏性变更。已有结果 URL 可继续用 `Client.Download` 下载，文档文本段可通过 `Text().Translate` 翻译。
 - 新增火山引擎文本、图片翻译 SDK 封装、译文下载和统一错误模型。
 - 模块路径按需求约定使用 `github.com/gtkit/volcenginex`。
-- 新增机器翻译 21 个网关错误码常量及文档模板查询。文本翻译、语种检测、图片翻译和文本用量错误可通过 `CodeN()` 读取上游数值错误码。
+- 新增机器翻译 21 个网关错误码常量。文本翻译、语种检测、图片翻译和文本用量错误可通过 `CodeN()` 读取上游数值错误码。
 - 修复 `WithMaxRetries(0)` 未关闭 SDK 重试的问题。
 - 文本翻译拒绝缺项、多项和空白译文，失败批次不计入字符数。
 - 文本翻译按每批最多 16 段、5000 个 Unicode 字符发送，保留分段文本的原始顺序和索引。

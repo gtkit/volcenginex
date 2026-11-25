@@ -31,6 +31,7 @@ type Dictionary struct {
 // LoadFile loads an uncompressed UTF-8 CC-CEDICT v1 file of any extension.
 // It returns an error for an unreadable file, malformed entry or empty dictionary.
 func LoadFile(path string) (*Dictionary, error) {
+	// #nosec G304 -- the caller explicitly supplies the local dictionary path.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("cedict: open file: %w", err)
