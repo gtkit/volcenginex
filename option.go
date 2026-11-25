@@ -29,65 +29,10 @@ type Config struct {
 	HTTPClient     *http.Client
 	MaxRetries     int
 	RequestTimeout time.Duration
-	Poll           PollPolicy
 	Logger         Logger
-	TOS            *TOSConfig
 	ImageMaxBytes  int64
 	maxRetriesSet  bool
 	partialFailure bool
-	progressHook   func(*TaskDetail)
-}
-
-// PollPolicy controls document task polling.
-type PollPolicy struct {
-	_ struct{}
-
-	Interval    time.Duration
-	MaxInterval time.Duration
-	Timeout     time.Duration
-	Jitter      float64
-}
-
-func defaultPollPolicy() PollPolicy {
-	return PollPolicy{
-		Interval:    3 * time.Second,
-		MaxInterval: 15 * time.Second,
-		Timeout:     10 * time.Minute,
-		Jitter:      0.2,
-	}
-}
-
-func (p PollPolicy) withDefaults() PollPolicy {
-	d := defaultPollPolicy()
-	if p.Interval > 0 {
-		d.Interval = p.Interval
-	}
-	if p.MaxInterval > 0 {
-		d.MaxInterval = p.MaxInterval
-	}
-	if p.Timeout > 0 {
-		d.Timeout = p.Timeout
-	}
-	if p.Jitter >= 0 {
-		d.Jitter = p.Jitter
-	}
-	if d.MaxInterval < d.Interval {
-		d.MaxInterval = d.Interval
-	}
-	return d
-}
-
-// TOSConfig controls optional TOS uploads.
-type TOSConfig struct {
-	_ struct{}
-
-	Endpoint   string
-	Region     string
-	Bucket     string
-	AccessKey  string
-	SecretKey  string
-	Prefix     string
-	PublicRead bool
 }
 
 // Option changes client construction behavior.
@@ -174,43 +119,10 @@ func WithLogger(l Logger) Option {
 	}
 }
 
-// WithPollPolicy sets document task polling defaults.
-func WithPollPolicy(p PollPolicy) Option {
-	return func(c *Config) error {
-		if p.Interval < 0 || p.MaxInterval < 0 || p.Timeout < 0 || p.Jitter < 0 || p.Jitter > 1 {
-			return ErrInvalidArgument
-		}
-		c.Poll = p
-		return nil
-	}
-}
-
-// WithTOS enables TOS uploads.
-func WithTOS(cfg TOSConfig) Option {
-	return func(c *Config) error {
-		if strings.TrimSpace(cfg.Bucket) == "" || strings.TrimSpace(cfg.Endpoint) == "" {
-			return ErrInvalidArgument
-		}
-		c.TOS = &cfg
-		return nil
-	}
-}
-
 // WithPartialFailure makes text translation return successful items and batch errors.
 func WithPartialFailure() Option {
 	return func(c *Config) error {
 		c.partialFailure = true
-		return nil
-	}
-}
-
-// WithProgressHook registers a document polling progress callback.
-func WithProgressHook(hook func(*TaskDetail)) Option {
-	return func(c *Config) error {
-		if hook == nil {
-			return ErrInvalidArgument
-		}
-		c.progressHook = hook
 		return nil
 	}
 }
@@ -245,11 +157,7 @@ func withConfigDefaults(c *Config) {
 	if c.RequestTimeout == 0 {
 		c.RequestTimeout = defaultTimeout
 	}
-	c.Poll = c.Poll.withDefaults()
 	if c.ImageMaxBytes == 0 {
 		c.ImageMaxBytes = defaultImageMaxSize
-	}
-	if c.TOS != nil && c.TOS.Prefix == "" {
-		c.TOS.Prefix = "volcenginex/"
 	}
 }

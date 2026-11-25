@@ -31,14 +31,6 @@ func CountVolcMTChar(text string) int {
 	return utf8.RuneCountInString(text)
 }
 
-func estimateDocumentCharacters(docs []DocInput) int {
-	count := 0
-	for _, doc := range docs {
-		count += CountVolcMTChar(doc.Content)
-	}
-	return count
-}
-
 // GetUsage returns provider usage points for the selected translation service.
 // The range includes both Beijing calendar dates covered by from and to.
 // Invalid arguments return ErrInvalidArgument before sending a request.

@@ -25,8 +25,6 @@ type Client struct {
 	image      *ImageService
 	audio      *AudioService
 	usageAPI   translate20250301.TRANSLATE20250301API
-	document   *DocumentService
-	tos        *TOSService
 }
 
 // New constructs a client with one shared official SDK session.
@@ -74,7 +72,6 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 
 	textClient := translate20250301.New(sess)
-	documentClient := newDocumentAPI(sess)
 	logger := loggerOrDiscard(cfg.Logger)
 	client := &Client{
 		httpClient: hc,
@@ -90,20 +87,6 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 	}
 	client.image = &ImageService{urlClient: newImageURLClient(cfg.RequestTimeout), api: textClient, maxBytes: cfg.ImageMaxBytes}
 	client.audio = &AudioService{api: textClient}
-	client.document = &DocumentService{
-		client:       client,
-		api:          documentClient,
-		poll:         cfg.Poll,
-		progressHook: cfg.progressHook,
-		sleep:        waitDuration,
-	}
-	if cfg.TOS != nil {
-		tosService, err := newTOSService(hc, *cfg.TOS, cfg.AK, cfg.SK)
-		if err != nil {
-			return nil, err
-		}
-		client.tos = tosService
-	}
 	return client, nil
 }
 
@@ -115,12 +98,6 @@ func (c *Client) Image() *ImageService { return c.image }
 
 // Audio returns the asynchronous audio and video file translation service.
 func (c *Client) Audio() *AudioService { return c.audio }
-
-// Document returns the asynchronous document translation service.
-func (c *Client) Document() *DocumentService { return c.document }
-
-// TOS returns the optional TOS service, or nil when TOS is not configured.
-func (c *Client) TOS() *TOSService { return c.tos }
 
 // Download streams a translation result to a local path.
 func (c *Client) Download(ctx context.Context, url, destPath string) (int64, error) {

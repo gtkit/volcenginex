@@ -20,8 +20,8 @@ func TestNewBuildsSharedServices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New returned error: %v", err)
 	}
-	if client.Text() == nil || client.Image() == nil || client.Document() == nil || client.TOS() != nil {
-		t.Fatalf("unexpected services: text=%p image=%p document=%p tos=%p", client.Text(), client.Image(), client.Document(), client.TOS())
+	if client.Text() == nil || client.Image() == nil || client.Audio() == nil {
+		t.Fatalf("unexpected services: text=%p image=%p audio=%p", client.Text(), client.Image(), client.Audio())
 	}
 	if err := client.Close(); err != nil {
 		t.Fatalf("Close returned error: %v", err)
@@ -45,10 +45,7 @@ func TestOptionsValidateAndApply(t *testing.T) {
 		WithMaxRetries(2),
 		WithTimeout(time.Second),
 		WithLogger(testLogger{}),
-		WithPollPolicy(PollPolicy{Interval: time.Second, MaxInterval: 2 * time.Second, Timeout: time.Minute, Jitter: 0.1}),
-		WithTOS(TOSConfig{Endpoint: "https://tos.example", Bucket: "bucket"}),
 		WithPartialFailure(),
-		WithProgressHook(func(*TaskDetail) {}),
 		WithMaxImageBytes(1024),
 	}
 	cfg := Config{}
@@ -57,13 +54,12 @@ func TestOptionsValidateAndApply(t *testing.T) {
 			t.Fatalf("option returned error: %v", err)
 		}
 	}
-	if !cfg.partialFailure || cfg.progressHook == nil || cfg.ImageMaxBytes != 1024 {
+	if !cfg.partialFailure || cfg.ImageMaxBytes != 1024 {
 		t.Fatalf("options were not applied: %#v", cfg)
 	}
 	invalid := []Option{
 		WithRegion(""), WithHTTPClient(nil), WithHTTPC(nil), WithMaxRetries(-1), WithTimeout(0),
-		WithPollPolicy(PollPolicy{Jitter: 2}), WithTOS(TOSConfig{}),
-		WithProgressHook(nil), WithMaxImageBytes(0),
+		WithMaxImageBytes(0),
 	}
 	for _, option := range invalid {
 		if err := option(&Config{}); !errors.Is(err, ErrInvalidArgument) {

@@ -1,6 +1,6 @@
 # volcenginex
 
-`volcenginex` 是独立的火山引擎翻译 Go 库，提供文本翻译、语种检测、图片翻译、音视频文件翻译、按服务查询翻译用量和可选的云文档任务接口。
+`volcenginex` 是独立的火山引擎翻译 Go 库，支持文本翻译、语种检测、图片翻译、音视频文件翻译和按服务查询翻译用量。加载本地 CC-CEDICT 和 ECDICT 词库后，还可进行中英双向离线查词。
 
 ## 能力矩阵
 
@@ -10,8 +10,7 @@
 | 图片翻译 | `translate` | 同步 | 机器翻译图片服务 |
 | 音视频文件翻译 | `translate` | 异步 | 机器翻译音视频服务 |
 | 翻译用量查询 | `translate` | 同步 | 查询文本、图片或音视频的上游用量 |
-| 文档项目、任务、轮询 | `i18n_openapi` | 异步 | 国际化翻译平台套餐/额度 |
-| TOS 上传与译文下载 | TOS/HTTP | 传输 | 由对应存储与翻译产品计费 |
+| 译文下载 | HTTP | 流式下载 | 使用调用方提供的结果 URL |
 | 中英双向离线查词 | CC-CEDICT / ECDICT | 同步 | 无云端请求 |
 
 ## 快速开始
@@ -29,7 +28,7 @@ result, err := client.Text().Translate(ctx, volcx.TextTranslateRequest{
 // pre-deduction. Final billing comes from the Volcengine bill.
 ```
 
-凭据也可以从 `VOLCENGINE_ACCESS_KEY`、`VOLCENGINE_SECRET_KEY` 和 `VOLCENGINE_SESSION_TOKEN` 读取。完整客户端只创建一个官方 session，文本、图片、音视频和文档服务共享连接池。
+凭据也可以从 `VOLCENGINE_ACCESS_KEY`、`VOLCENGINE_SECRET_KEY` 和 `VOLCENGINE_SESSION_TOKEN` 读取。文本、图片、音视频及用量查询的 SDK 请求共享同一个官方 session 和连接池。
 
 文本翻译使用 `2025-03-01`。将 `SourceLanguage` 留空即可自动识别源语种。返回的 `Items` 与输入顺序一致，每项包含译文及上游返回的检测语种。
 
@@ -129,24 +128,9 @@ if apiErr, ok := errors.AsType[*volcx.Error](err); ok {
 
 Go 库每次向火山发送最多 16 段、合计 5000 个 Unicode 字符。`BatchSize` 可以设置更小的段数上限。空白段保留原索引且跳过发包。单段超过 5000 字符时返回 `ErrInvalidArgument`，整次调用不发包。这个流程只需要机器翻译凭据。
 
-## 已有云文档接口
+术语一致性由调用方处理。已有译文 URL 可通过 `client.Download(ctx, url, destPath)` 下载。下载长度与声明不一致时返回 `ErrIncompleteDownload`。
 
-```text
-本地文件 --TOS 预签名 PUT--> 对象 URL
-    --DocumentCreate--> 项目 ID
-    --DocumentTaskCreate--> 任务 ID
-    --轮询 DocumentTaskDetail--> TargetDocURL
-    --Download--> 本地译文
-```
-
-上传失败返回 `TOSUpload` 错误，创建项目或任务失败返回带请求 ID 的 provider 错误，轮询超时或连续失败返回轮询错误，下载长度不一致返回 `ErrIncompleteDownload`。
-
-## 已知限制
-
-- 云文档接口的 `.doc`、`.xls`、`.ppt`、`.csv` 以及飞书表格/幻灯片类型不支持线上解析，需另存为 `.docx`、`.xlsx` 或 `.pptx`。
-- 云文档接口的单任务最多 10 个文档，单文件最多 200 MB，单任务总大小最多 2000 MB。
-- 文本接口不提供记忆库和术语库，术语一致性需要业务层处理。
-- 文档翻译为异步任务，典型耗时为分钟级，不适合划词实时场景。
+从旧版迁移时，原先调用 `Client.Document()` 的代码可按上述方式翻译已抽取的文本段。仍需云端项目或任务的调用方可直接使用火山国际化翻译平台 API。原先使用 `Client.TOS()` 上传对象的调用方可改用官方 TOS SDK。
 
 ## 插件后端代理
 
@@ -169,7 +153,7 @@ func translateHandler(client *volcx.Client) http.Handler {
 
 ## 用量统计
 
-`Text().Translate` 返回的 `CharacterCount` 只用于本地展示或预扣。图片结果的 `ImageCount` 统计图片张数，不统计 OCR 字符。文档全链路结果的 `EstimatedCharacterCount` 只统计调用方提供的内联文本，上传文件由火山内部抽取文本，实际账单可能存在偏差。
+`Text().Translate` 返回的 `CharacterCount` 只用于本地展示或预扣。图片结果的 `ImageCount` 按图片张数统计。
 
 `Client.GetUsage(ctx, service, from, to)` 使用 `UsageServiceText`、`UsageServiceImage` 或 `UsageServiceAudio` 选择查询服务。`from` 和 `to` 是 `time.Time`，按北京时间转换为日期，查询包含首尾两天。
 

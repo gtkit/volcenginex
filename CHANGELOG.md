@@ -4,8 +4,8 @@
 
 - 新增 `dictionary` 子包，以只读 SQLite 接入 ECDICT Ultimate，和 CC-CEDICT 提供统一的中英离线查词，支持显式语种、自动分流和混合输入错误。
 - 新增 `cedict` 子包，支持从调用方提供的 CC-CEDICT v1 文本离线查询简繁中文词语的英文释义。
-- 新增火山引擎文本、图片和文档翻译 SDK 封装。
-- 新增 TOS 预签名上传、译文下载、轮询和统一错误模型。
+- 移除 `Client.TOS()`、`Client.Document()`、`WithTOS`、`WithPollPolicy`、`WithProgressHook` 及相关类型和错误。这是破坏性变更。已有结果 URL 可继续用 `Client.Download` 下载，文档文本段可通过 `Text().Translate` 翻译。
+- 新增火山引擎文本、图片翻译 SDK 封装、译文下载和统一错误模型。
 - 模块路径按需求约定使用 `github.com/gtkit/volcenginex`。
 - 新增机器翻译 21 个网关错误码常量及文档模板查询。文本翻译、语种检测、图片翻译和文本用量错误可通过 `CodeN()` 读取上游数值错误码。
 - 修复 `WithMaxRetries(0)` 未关闭 SDK 重试的问题。

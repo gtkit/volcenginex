@@ -21,20 +21,6 @@ var (
 	ErrInvalidArgument = errors.New("volcenginex: invalid argument")
 	// ErrImageTooLarge means an image exceeds the configured byte limit.
 	ErrImageTooLarge = errors.New("volcenginex: image too large")
-	// ErrTooManyDocs means a task contains more than ten documents.
-	ErrTooManyDocs = errors.New("volcenginex: too many documents")
-	// ErrFileTooLarge means a document exceeds 200 MB.
-	ErrFileTooLarge = errors.New("volcenginex: file too large")
-	// ErrTaskTooLarge means a task exceeds 2000 MB total.
-	ErrTaskTooLarge = errors.New("volcenginex: task too large")
-	// ErrDocTypeUnsupported means the source type cannot be parsed online.
-	ErrDocTypeUnsupported = errors.New("volcenginex: document type unsupported")
-	// ErrTaskAborted means a document task reached a stopped or deleted state.
-	ErrTaskAborted = errors.New("volcenginex: document task aborted")
-	// ErrPollExhausted means repeated polling failures exceeded the limit.
-	ErrPollExhausted = errors.New("volcenginex: polling exhausted")
-	// ErrTOSNotConfigured means TOS upload configuration is absent.
-	ErrTOSNotConfigured = errors.New("volcenginex: TOS is not configured")
 	// ErrIncompleteDownload means response bytes differ from Content-Length.
 	ErrIncompleteDownload = errors.New("volcenginex: incomplete download")
 )

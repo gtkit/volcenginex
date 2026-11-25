@@ -22,8 +22,8 @@ func TestProviderErrorCarriesProviderFields(t *testing.T) {
 }
 
 func TestErrorSentinelAndRetryable(t *testing.T) {
-	wrapped := wrapSentinel("op", ErrDocTypeUnsupported, "unsupported")
-	if !errors.Is(wrapped, ErrDocTypeUnsupported) || wrapped.Error() == "" {
+	wrapped := wrapSentinel("op", ErrInvalidArgument, "invalid argument")
+	if !errors.Is(wrapped, ErrInvalidArgument) || wrapped.Error() == "" {
 		t.Fatalf("sentinel error = %v", wrapped)
 	}
 	if !errors.Is((&Error{Err: ErrInvalidArgument}), ErrInvalidArgument) {

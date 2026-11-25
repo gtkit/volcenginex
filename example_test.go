@@ -26,11 +26,6 @@ func ExampleNew() {
 	// Output: true
 }
 
-func ExampleDocType() {
-	fmt.Println(volcx.DocTypeDocx, volcx.DocTypePdf)
-	// Output: 3 12
-}
-
 func ExampleCountVolcMTChar() {
 	fmt.Println(volcx.CountVolcMTChar("你好 🙂"))
 	// Output: 4
