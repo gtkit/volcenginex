@@ -80,6 +80,7 @@ func (s *TextService) GetUsageCommon(ctx context.Context, from, to int32) (*Usag
 
 func usageDate(t time.Time) int32 {
 	year, month, day := t.In(usageLocation).Date()
+	// #nosec G115 -- callers use validated four-digit years, int32 Unix seconds, or recent local dates. YYYYMMDD fits in int32.
 	return int32(year*10000 + int(month)*100 + day)
 }
 
