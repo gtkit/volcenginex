@@ -15,6 +15,7 @@ func main() {
 	if *short {
 		return
 	}
+	// New 从 VOLCENGINE_ACCESS_KEY 和 VOLCENGINE_SECRET_KEY 读取凭据。
 	client, err := volcx.New(volcx.Config{})
 	if err != nil {
 		fmt.Println("create client:", err)
