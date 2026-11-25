@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- 新增 `dictionary` 子包，以只读 SQLite 接入 ECDICT Ultimate，和 CC-CEDICT 提供统一的中英离线查词，支持显式语种、自动分流和混合输入错误。
 - 新增 `cedict` 子包，支持从调用方提供的 CC-CEDICT v1 文本离线查询简繁中文词语的英文释义。
 - 新增火山引擎文本、图片和文档翻译 SDK 封装。
 - 新增 TOS 预签名上传、译文下载、轮询和统一错误模型。

@@ -12,7 +12,7 @@
 | 翻译用量查询 | `translate` | 同步 | 查询文本、图片或音视频的上游用量 |
 | 文档项目、任务、轮询 | `i18n_openapi` | 异步 | 国际化翻译平台套餐/额度 |
 | TOS 上传与译文下载 | TOS/HTTP | 传输 | 由对应存储与翻译产品计费 |
-| CC-CEDICT 汉英查词 | 本地词库 | 同步 | 无云端请求 |
+| 中英双向离线查词 | CC-CEDICT / ECDICT | 同步 | 无云端请求 |
 
 ## 快速开始
 
@@ -38,6 +38,31 @@ result, err := client.Text().Translate(ctx, volcx.TextTranslateRequest{
 `WithMaxRetries(0)` 禁用官方 SDK 重试，未设置时默认重试三次。文本翻译会校验上游译文条数和内容，只有有效批次计入 `CharacterCount`。如果上游返回数值错误码，可通过 `(*Error).CodeN()` 读取。
 
 `Image().TranslateURL()` 从公网 HTTP/HTTPS 地址下载图片，再发送编码后的字节。下载使用独立的直连客户端，遵循 `WithTimeout` 和 `WithMaxImageBytes`。需要访问私网或自定义代理、鉴权的调用方，可用自己的客户端取得图片字节，再调用 `Image().Translate()`。
+
+## 中英双向离线查词
+
+从 [MDBG 下载 CC-CEDICT v1](https://www.mdbg.net/chinese/dictionary?lang=en&page=cc-cedict)，解压得到 UTF-8 文本。从 [ECDICT Ultimate 发布页](https://github.com/skywind3000/ECDICT-ultimate/releases/tag/1.0.0) 下载 `ecdict-ultimate-sqlite.zip`，解压得到 `ultimate.db`。启动时用两个文件路径打开字典，后续请求共享该实例，服务关闭时调用 `Close()`。
+
+```go
+import "github.com/gtkit/volcenginex/dictionary"
+
+dict, err := dictionary.Open(ctx, cedictPath, ecdictPath)
+if err != nil {
+    return err
+}
+
+result, err := dict.Lookup(ctx, dictionary.LookupRequest{Word: "look up"})
+if err != nil {
+    return err
+}
+for _, entry := range result.Entries {
+    fmt.Println(result.SourceLanguage, entry.Pronunciation, entry.Definitions)
+}
+```
+
+`SourceLanguage` 可显式传 `zh` 或 `en`，省略时按汉字和拉丁字母自动判断。混合输入在自动模式返回 `ErrMixedInput`，可用 `errors.Is` 判断。未收录时返回已选语种和空词条。查词精确匹配单词或已收录的短语。
+
+汉英查询复用内存中的 CC-CEDICT 词头索引，英汉查询对 SQLite 只读连接池按词头查询。驱动随 Go 应用编译，部署时提供词库文件即可。
 
 ## CC-CEDICT 离线汉英查词
 
