@@ -116,8 +116,10 @@ func replay(ctx context.Context, status int, body []byte, target string) any {
 		TargetLanguage: target, TextList: []string{sampleText},
 	})
 	if provider, ok := errors.AsType[*volcx.Error](err); ok {
-		return map[string]any{"code": provider.Code, "httpStatus": provider.HTTPStatus,
-			"retryable": provider.Retryable, "requestID": provider.RequestID}
+		return map[string]any{
+			"code": provider.Code, "httpStatus": provider.HTTPStatus,
+			"retryable": provider.Retryable, "requestID": provider.RequestID,
+		}
 	}
 	if err != nil {
 		return map[string]any{"error": err.Error()}
@@ -137,7 +139,8 @@ func main() {
 	credentials := base.Credentials{AccessKeyID: ak, SecretAccessKey: sk, Region: "cn-north-1", Service: "translate"}
 	transport := &http.Transport{DisableKeepAlives: true}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 15 * time.Second,
+	client := &http.Client{
+		Transport: transport, Timeout: 15 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 	for _, endpoint := range []struct{ version, host string }{
