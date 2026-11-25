@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-25
+
 - 新增 `dictionary` 子包，以只读 SQLite 接入 ECDICT Ultimate，和 CC-CEDICT 提供统一的中英离线查词，支持显式语种、自动分流和混合输入错误。
 - 新增 `cedict` 子包，支持从调用方提供的 CC-CEDICT v1 文本离线查询简繁中文词语的英文释义。
 - 移除 `Client.TOS()`、`Client.Document()`、`WithTOS`、`WithPollPolicy`、`WithProgressHook` 及相关类型和错误。这是破坏性变更。已有结果 URL 可继续用 `Client.Download` 下载，文档文本段可通过 `Text().Translate` 翻译。
